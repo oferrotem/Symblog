@@ -17,3 +17,6 @@
 [2013-01-06 18:27:39] request.ERROR: Symfony\Component\HttpKernel\Exception\NotFoundHttpException: No route found for "GET /" (uncaught exception) at /home/ofer/Symfony/app/cache/prod/classes.php line 5078 [] []
 [2013-01-07 15:36:50] request.ERROR: Symfony\Component\HttpKernel\Exception\NotFoundHttpException: No route found for "GET /" (uncaught exception) at /home/ofer/Symfony/app/cache/prod/classes.php line 5078 [] []
 [2013-01-07 15:45:10] request.ERROR: Symfony\Component\HttpKernel\Exception\NotFoundHttpException: No route found for "GET /" (uncaught exception) at /home/ofer/Symfony/app/cache/prod/classes.php line 5078 [] []
+[2013-01-10 11:59:19] request.ERROR: Symfony\Component\HttpKernel\Exception\NotFoundHttpException: No route found for "GET /about" (uncaught exception) at /home/ofer/Symfony/app/cache/prod/classes.php line 5078 [] []
+[2013-01-10 11:59:24] request.ERROR: Symfony\Component\HttpKernel\Exception\NotFoundHttpException: No route found for "GET /" (uncaught exception) at /home/ofer/Symfony/app/cache/prod/classes.php line 5078 [] []
+[2013-01-10 11:59:32] request.ERROR: Symfony\Component\HttpKernel\Exception\NotFoundHttpException: No route found for "GET /" (uncaught exception) at /home/ofer/Symfony/app/cache/prod/classes.php line 5078 [] []
