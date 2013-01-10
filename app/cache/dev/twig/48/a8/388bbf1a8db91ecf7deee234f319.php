@@ -131,7 +131,10 @@ class __TwigTemplate_48a8388bbf1a8db91ecf7deee234f319 extends Twig_Template
         // line 26
         echo twig_escape_filter($this->env, $this->env->getExtension('routing')->getPath("BloggerBlogBundle_about"), "html", null, true);
         echo "\">About</a></li>
-                                <li><a href=\"#\">Contact</a></li>
+                                <li><a href=\"";
+        // line 27
+        echo twig_escape_filter($this->env, $this->env->getExtension('routing')->getPath("BloggerBlogBundle_contact"), "html", null, true);
+        echo "\">Contact</a></li>
                             </ul>
                         </nav>
                     ";
@@ -188,6 +191,6 @@ class __TwigTemplate_48a8388bbf1a8db91ecf7deee234f319 extends Twig_Template
 
     public function getDebugInfo()
     {
-        return array (  173 => 53,  168 => 48,  165 => 47,  160 => 43,  155 => 40,  147 => 35,  139 => 34,  130 => 26,  126 => 25,  122 => 23,  119 => 22,  113 => 13,  109 => 11,  106 => 10,  100 => 6,  94 => 54,  92 => 53,  87 => 50,  85 => 47,  80 => 44,  78 => 43,  74 => 41,  72 => 40,  64 => 35,  60 => 34,  55 => 31,  53 => 22,  42 => 15,  40 => 10,  33 => 6,  26 => 1,);
+        return array (  176 => 53,  171 => 48,  168 => 47,  163 => 43,  158 => 40,  150 => 35,  142 => 34,  134 => 27,  130 => 26,  126 => 25,  122 => 23,  119 => 22,  113 => 13,  109 => 11,  106 => 10,  100 => 6,  94 => 54,  92 => 53,  87 => 50,  85 => 47,  80 => 44,  78 => 43,  74 => 41,  72 => 40,  64 => 35,  60 => 34,  55 => 31,  53 => 22,  42 => 15,  40 => 10,  33 => 6,  26 => 1,);
     }
 }
