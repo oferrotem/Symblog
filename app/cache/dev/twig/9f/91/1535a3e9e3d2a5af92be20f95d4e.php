@@ -41,12 +41,12 @@ class __TwigTemplate_9f911535a3e9e3d2a5af92be20f95d4e extends Twig_Template
 
     ";
         // line 11
-        if ($this->getAttribute($this->getAttribute($this->getContext($context, "app"), "session"), "hasFlash", array(0 => "blogger-notice"), "method")) {
+        if ($this->getAttribute($this->getAttribute((isset($context["app"]) ? $context["app"] : $this->getContext($context, "app")), "session"), "hasFlash", array(0 => "blogger-notice"), "method")) {
             // line 12
             echo "        <div class=\"blogger-notice\">
             ";
             // line 13
-            echo twig_escape_filter($this->env, $this->getAttribute($this->getAttribute($this->getContext($context, "app"), "session"), "flash", array(0 => "blogger-notice"), "method"), "html", null, true);
+            echo twig_escape_filter($this->env, $this->getAttribute($this->getAttribute((isset($context["app"]) ? $context["app"] : $this->getContext($context, "app")), "session"), "flash", array(0 => "blogger-notice"), "method"), "html", null, true);
             echo "
         </div>
     ";
@@ -59,33 +59,33 @@ class __TwigTemplate_9f911535a3e9e3d2a5af92be20f95d4e extends Twig_Template
         // line 19
         echo twig_escape_filter($this->env, $this->env->getExtension('routing')->getPath("BloggerBlogBundle_contact"), "html", null, true);
         echo "\" method=\"post\" ";
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getContext($context, "form"), 'enctype');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), 'enctype');
         echo " class=\"blogger\">
         ";
         // line 20
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getContext($context, "form"), 'errors');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), 'errors');
         echo "
 
         ";
         // line 22
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute($this->getContext($context, "form"), "name"), 'row');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), "name"), 'row');
         echo "
         ";
         // line 23
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute($this->getContext($context, "form"), "email"), 'row');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), "email"), 'row');
         echo "
         ";
         // line 24
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute($this->getContext($context, "form"), "subject"), 'row');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), "subject"), 'row');
         echo "
         ";
         // line 25
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute($this->getContext($context, "form"), "body"), 'row');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getAttribute((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), "body"), 'row');
         echo "
 
         ";
         // line 27
-        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock($this->getContext($context, "form"), 'rest');
+        echo $this->env->getExtension('form')->renderer->searchAndRenderBlock((isset($context["form"]) ? $context["form"] : $this->getContext($context, "form")), 'rest');
         echo "
 
         <input type=\"submit\" value=\"Submit\" />
@@ -105,6 +105,6 @@ class __TwigTemplate_9f911535a3e9e3d2a5af92be20f95d4e extends Twig_Template
 
     public function getDebugInfo()
     {
-        return array (  86 => 27,  81 => 25,  77 => 24,  73 => 23,  69 => 22,  64 => 20,  58 => 19,  53 => 16,  47 => 13,  44 => 12,  42 => 11,  36 => 7,  33 => 6,  27 => 4,);
+        return array (  88 => 27,  83 => 25,  79 => 24,  75 => 23,  71 => 22,  66 => 20,  60 => 19,  55 => 16,  49 => 13,  46 => 12,  44 => 11,  38 => 7,  35 => 6,  29 => 4,);
     }
 }

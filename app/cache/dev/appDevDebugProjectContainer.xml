@@ -15,6 +15,7 @@
       <parameter key="SwiftmailerBundle">Symfony\Bundle\SwiftmailerBundle\SwiftmailerBundle</parameter>
       <parameter key="AsseticBundle">Symfony\Bundle\AsseticBundle\AsseticBundle</parameter>
       <parameter key="DoctrineBundle">Doctrine\Bundle\DoctrineBundle\DoctrineBundle</parameter>
+      <parameter key="DoctrineFixturesBundle">Doctrine\Bundle\FixturesBundle\DoctrineFixturesBundle</parameter>
       <parameter key="SensioFrameworkExtraBundle">Sensio\Bundle\FrameworkExtraBundle\SensioFrameworkExtraBundle</parameter>
       <parameter key="JMSAopBundle">JMS\AopBundle\JMSAopBundle</parameter>
       <parameter key="JMSDiExtraBundle">JMS\DiExtraBundle\JMSDiExtraBundle</parameter>
@@ -85,6 +86,7 @@
     <parameter key="debug.container.dump">/home/ofer/Symfony/app/cache/dev/appDevDebugProjectContainer.xml</parameter>
     <parameter key="debug.controller_resolver.class">Symfony\Bundle\FrameworkBundle\Controller\TraceableControllerResolver</parameter>
     <parameter key="kernel.secret">088b2b79a694fbcd4a6446c0045653aed0893aa7</parameter>
+    <parameter key="kernel.trusted_proxies" type="collection"/>
     <parameter key="kernel.trust_proxy_headers">false</parameter>
     <parameter key="kernel.default_locale">en</parameter>
     <parameter key="session.class">Symfony\Component\HttpFoundation\Session\Session</parameter>
@@ -311,6 +313,7 @@
     <parameter key="monolog.handler.debug.class">Symfony\Bridge\Monolog\Handler\DebugHandler</parameter>
     <parameter key="monolog.handler.swift_mailer.class">Monolog\Handler\SwiftMailerHandler</parameter>
     <parameter key="monolog.handler.native_mailer.class">Monolog\Handler\NativeMailerHandler</parameter>
+    <parameter key="monolog.handler.socket.class">Monolog\Handler\SocketHandler</parameter>
     <parameter key="monolog.handler.fingers_crossed.class">Monolog\Handler\FingersCrossedHandler</parameter>
     <parameter key="monolog.handler.fingers_crossed.error_level_activation_strategy.class">Monolog\Handler\FingersCrossed\ErrorLevelActivationStrategy</parameter>
     <parameter key="monolog.handlers_to_channels" type="collection">
@@ -344,6 +347,7 @@
     <parameter key="swiftmailer.spool.enabled">true</parameter>
     <parameter key="swiftmailer.sender_address">null</parameter>
     <parameter key="swiftmailer.single_address">null</parameter>
+    <parameter key="swiftmailer.delivery_whitelist" type="collection"/>
     <parameter key="assetic.asset_factory.class">Symfony\Bundle\AsseticBundle\Factory\AssetFactory</parameter>
     <parameter key="assetic.asset_manager.class">Assetic\Factory\LazyAssetManager</parameter>
     <parameter key="assetic.asset_manager_cache_warmer.class">Symfony\Bundle\AsseticBundle\CacheWarmer\AssetManagerCacheWarmer</parameter>
@@ -462,8 +466,8 @@
     <parameter key="jms_di_extra.directories" type="collection"/>
     <parameter key="jms_di_extra.cache_dir">/home/ofer/Symfony/app/cache/dev/jms_diextra</parameter>
     <parameter key="jms_di_extra.doctrine_integration">true</parameter>
-    <parameter key="jms_di_extra.doctrine_integration.entity_manager.file">/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f26e015e797.php</parameter>
-    <parameter key="jms_di_extra.doctrine_integration.entity_manager.class">EntityManager50f26e015e797_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager</parameter>
+    <parameter key="jms_di_extra.doctrine_integration.entity_manager.file">/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f2c730ebbea.php</parameter>
+    <parameter key="jms_di_extra.doctrine_integration.entity_manager.class">EntityManager50f2c730ebbea_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager</parameter>
     <parameter key="security.secured_services" type="collection"/>
     <parameter key="security.access.method_interceptor.class">JMS\SecurityExtraBundle\Security\Authorization\Interception\MethodSecurityInterceptor</parameter>
     <parameter key="security.access.method_access_control" type="collection"/>
@@ -1946,6 +1950,10 @@
       <call method="addExtension">
         <argument type="service" id="twig.extension.acme.demo"/>
       </call>
+      <call method="addGlobal">
+        <argument>app</argument>
+        <argument type="service" id="templating.globals"/>
+      </call>
     </service>
     <service id="twig.loader" class="Symfony\Bundle\TwigBundle\Loader\FilesystemLoader">
       <argument type="service" id="templating.locator"/>
@@ -2136,8 +2144,8 @@
     <service id="doctrine.orm.default_manager_configurator" class="Doctrine\Bundle\DoctrineBundle\ManagerConfigurator">
       <argument type="collection"/>
     </service>
-    <service id="doctrine.orm.default_entity_manager" class="EntityManager50f26e015e797_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager">
-      <file>/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f26e015e797.php</file>
+    <service id="doctrine.orm.default_entity_manager" class="EntityManager50f2c730ebbea_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager">
+      <file>/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f2c730ebbea.php</file>
       <argument type="service">
         <service class="Doctrine\ORM\EntityManager" factory-method="create" public="false">
           <argument type="service" id="doctrine.dbal.default_connection"/>
