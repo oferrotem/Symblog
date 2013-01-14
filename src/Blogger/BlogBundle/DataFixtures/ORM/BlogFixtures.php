@@ -3,13 +3,11 @@
 
 namespace Blogger\BlogBundle\DataFixtures\ORM;
 
-//use Doctrine\Common\DataFixtures\FixtureInterface; //This is not present in the version here: http://tutorial.symblog.co.uk/docs/extending-the-model-blog-comments.html#data-fixtures-revisited
 use Doctrine\Common\DataFixtures\AbstractFixture;
 use Doctrine\Common\DataFixtures\OrderedFixtureInterface;
 use Doctrine\Common\Persistence\ObjectManager;
 use Blogger\BlogBundle\Entity\Blog;
 
-//class BlogFixtures implements FixtureInterface
 class BlogFixtures extends AbstractFixture implements OrderedFixtureInterface
 {
     public function load(ObjectManager $manager)
