@@ -135,3 +135,8 @@
 50f2c8293bafe,127.0.0.1,GET,http://symfony2/app_dev.php/3,1358088233,
 50f2c86634140,127.0.0.1,GET,http://symfony2/app_dev.php/1,1358088294,
 50f2c86916dc4,127.0.0.1,GET,http://symfony2/app_dev.php/1,1358088297,
+50f2d12b26c8a,127.0.0.1,GET,http://symfony2/app_dev.php/,1358090539,
+50f2d12e88141,127.0.0.1,GET,http://symfony2/app_dev.php/1,1358090542,
+50f2d1327d09b,127.0.0.1,GET,http://symfony2/app_dev.php/,1358090546,
+50f3b55b44c6c,127.0.0.1,GET,http://symfony2/app_dev.php/,1358148955,
+50f3b55bc8e45,127.0.0.1,GET,http://symfony2/app_dev.php/3,1358148955,
