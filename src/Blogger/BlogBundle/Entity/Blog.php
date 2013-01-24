@@ -1,4 +1,5 @@
 <?php
+
 // src/Blogger/BlogBundle/Entity/Blog.php
 
 namespace Blogger\BlogBundle\Entity;
@@ -11,8 +12,13 @@ use Doctrine\Common\Collections\ArrayCollection;
  * @ORM\Table(name="blog")
  * @ORM\HasLifecycleCallbacks()
  */
-class Blog
-{
+class Blog {
+
+    /**
+     * @ORM\Column(type="string")
+     */
+    protected $slug;
+
     /**
      * @ORM\Id
      * @ORM\Column(type="integer")
@@ -60,8 +66,7 @@ class Blog
      */
     protected $updated;
 
-    public function __construct()
-    {
+    public function __construct() {
         $this->comments = new ArrayCollection();
 
         $this->setCreated(new \DateTime());
@@ -71,18 +76,16 @@ class Blog
     /**
      * @ORM\PreUpdate
      */
-    public function setUpdatedValue()
-    {
-       $this->setUpdated(new \DateTime());
+    public function setUpdatedValue() {
+        $this->setUpdated(new \DateTime());
     }
-    
+
     /**
      * Get id
      *
      * @return integer 
      */
-    public function getId()
-    {
+    public function getId() {
         return $this->id;
     }
 
@@ -92,10 +95,9 @@ class Blog
      * @param string $title
      * @return Blog
      */
-    public function setTitle($title)
-    {
+    public function setTitle($title) {
         $this->title = $title;
-    
+        $this->setSlug($this->title);
         return $this;
     }
 
@@ -104,8 +106,7 @@ class Blog
      *
      * @return string 
      */
-    public function getTitle()
-    {
+    public function getTitle() {
         return $this->title;
     }
 
@@ -115,10 +116,9 @@ class Blog
      * @param string $author
      * @return Blog
      */
-    public function setAuthor($author)
-    {
+    public function setAuthor($author) {
         $this->author = $author;
-    
+
         return $this;
     }
 
@@ -127,8 +127,7 @@ class Blog
      *
      * @return string 
      */
-    public function getAuthor()
-    {
+    public function getAuthor() {
         return $this->author;
     }
 
@@ -138,10 +137,9 @@ class Blog
      * @param string $blog
      * @return Blog
      */
-    public function setBlog($blog)
-    {
+    public function setBlog($blog) {
         $this->blog = $blog;
-    
+
         return $this;
     }
 
@@ -150,8 +148,7 @@ class Blog
      *
      * @return string 
      */
-    public function getBlog($length = null)
-    {
+    public function getBlog($length = null) {
         if (false === is_null($length) && $length > 0)
             return substr($this->blog, 0, $length);
         else
@@ -164,10 +161,9 @@ class Blog
      * @param string $image
      * @return Blog
      */
-    public function setImage($image)
-    {
+    public function setImage($image) {
         $this->image = $image;
-    
+
         return $this;
     }
 
@@ -176,8 +172,7 @@ class Blog
      *
      * @return string 
      */
-    public function getImage()
-    {
+    public function getImage() {
         return $this->image;
     }
 
@@ -187,10 +182,9 @@ class Blog
      * @param string $tags
      * @return Blog
      */
-    public function setTags($tags)
-    {
+    public function setTags($tags) {
         $this->tags = $tags;
-    
+
         return $this;
     }
 
@@ -199,8 +193,7 @@ class Blog
      *
      * @return string 
      */
-    public function getTags()
-    {
+    public function getTags() {
         return $this->tags;
     }
 
@@ -210,10 +203,9 @@ class Blog
      * @param \DateTime $created
      * @return Blog
      */
-    public function setCreated($created)
-    {
+    public function setCreated($created) {
         $this->created = $created;
-    
+
         return $this;
     }
 
@@ -222,8 +214,7 @@ class Blog
      *
      * @return \DateTime 
      */
-    public function getCreated()
-    {
+    public function getCreated() {
         return $this->created;
     }
 
@@ -233,10 +224,9 @@ class Blog
      * @param \DateTime $updated
      * @return Blog
      */
-    public function setUpdated($updated)
-    {
+    public function setUpdated($updated) {
         $this->updated = $updated;
-    
+
         return $this;
     }
 
@@ -245,8 +235,7 @@ class Blog
      *
      * @return \DateTime 
      */
-    public function getUpdated()
-    {
+    public function getUpdated() {
         return $this->updated;
     }
 
@@ -256,10 +245,9 @@ class Blog
      * @param \Blogger\BlogBundle\Entity\Comment $comments
      * @return Blog
      */
-    public function addComment(\Blogger\BlogBundle\Entity\Comment $comments)
-    {
+    public function addComment(\Blogger\BlogBundle\Entity\Comment $comments) {
         $this->comments[] = $comments;
-    
+
         return $this;
     }
 
@@ -268,8 +256,7 @@ class Blog
      *
      * @param \Blogger\BlogBundle\Entity\Comment $comments
      */
-    public function removeComment(\Blogger\BlogBundle\Entity\Comment $comments)
-    {
+    public function removeComment(\Blogger\BlogBundle\Entity\Comment $comments) {
         $this->comments->removeElement($comments);
     }
 
@@ -278,13 +265,58 @@ class Blog
      *
      * @return \Doctrine\Common\Collections\Collection 
      */
-    public function getComments()
-    {
+    public function getComments() {
         return $this->comments;
     }
-    
-    public function __toString()
-    {
+
+    public function __toString() {
         return $this->getTitle();
     }
+
+    /**
+     * Set slug
+     *
+     * @param string $slug
+     * @return Blog
+     */
+    public function setSlug($slug) {
+        $this->slug = $this->slugify($slug);;
+
+        return $this;
+    }
+
+    /**
+     * Get slug
+     *
+     * @return string 
+     */
+    public function getSlug() {
+        return $this->slug;
+    }
+
+    public function slugify($text) {
+        // replace non letter or digits by -
+        $text = preg_replace('#[^\\pL\d]+#u', '-', $text);
+
+        // trim
+        $text = trim($text, '-');
+
+        // transliterate
+        if (function_exists('iconv')) {
+            $text = iconv('utf-8', 'us-ascii//TRANSLIT', $text);
+        }
+
+        // lowercase
+        $text = strtolower($text);
+
+        // remove unwanted characters
+        $text = preg_replace('#[^-\w]+#', '', $text);
+
+        if (empty($text)) {
+            return 'n-a';
+        }
+
+        return $text;
+    }
+
 }

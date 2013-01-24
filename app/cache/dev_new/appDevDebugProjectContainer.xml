@@ -21,6 +21,7 @@
       <parameter key="JMSDiExtraBundle">JMS\DiExtraBundle\JMSDiExtraBundle</parameter>
       <parameter key="JMSSecurityExtraBundle">JMS\SecurityExtraBundle\JMSSecurityExtraBundle</parameter>
       <parameter key="BloggerBlogBundle">Blogger\BlogBundle\BloggerBlogBundle</parameter>
+      <parameter key="DoctrineMigrationsBundle">Doctrine\Bundle\MigrationsBundle\DoctrineMigrationsBundle</parameter>
       <parameter key="AcmeDemoBundle">Acme\DemoBundle\AcmeDemoBundle</parameter>
       <parameter key="WebProfilerBundle">Symfony\Bundle\WebProfilerBundle\WebProfilerBundle</parameter>
       <parameter key="SensioDistributionBundle">Sensio\Bundle\DistributionBundle\SensioDistributionBundle</parameter>
@@ -44,6 +45,7 @@
     <parameter key="secret">088b2b79a694fbcd4a6446c0045653aed0893aa7</parameter>
     <parameter key="database_path">null</parameter>
     <parameter key="blogger_blog.emails.contact_email">ofer@goldbarventures.com</parameter>
+    <parameter key="blogger_blog.comments.latest_comment_limit">10</parameter>
     <parameter key="controller_resolver.class">Symfony\Bundle\FrameworkBundle\Controller\ControllerResolver</parameter>
     <parameter key="controller_name_converter.class">Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser</parameter>
     <parameter key="response_listener.class">Symfony\Component\HttpKernel\EventListener\ResponseListener</parameter>
@@ -466,8 +468,8 @@
     <parameter key="jms_di_extra.directories" type="collection"/>
     <parameter key="jms_di_extra.cache_dir">/home/ofer/Symfony/app/cache/dev/jms_diextra</parameter>
     <parameter key="jms_di_extra.doctrine_integration">true</parameter>
-    <parameter key="jms_di_extra.doctrine_integration.entity_manager.file">/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f2c208aa02b.php</parameter>
-    <parameter key="jms_di_extra.doctrine_integration.entity_manager.class">EntityManager50f2c208aa02b_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager</parameter>
+    <parameter key="jms_di_extra.doctrine_integration.entity_manager.file">/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_510152f572da9.php</parameter>
+    <parameter key="jms_di_extra.doctrine_integration.entity_manager.class">EntityManager510152f572da9_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager</parameter>
     <parameter key="security.secured_services" type="collection"/>
     <parameter key="security.access.method_interceptor.class">JMS\SecurityExtraBundle\Security\Authorization\Interception\MethodSecurityInterceptor</parameter>
     <parameter key="security.access.method_access_control" type="collection"/>
@@ -498,8 +500,12 @@
     <parameter key="security.authenticated_voter.disabled">false</parameter>
     <parameter key="security.role_voter.disabled">false</parameter>
     <parameter key="security.acl_voter.disabled">false</parameter>
+    <parameter key="doctrine_migrations.dir_name">/home/ofer/Symfony/app/DoctrineMigrations</parameter>
+    <parameter key="doctrine_migrations.namespace">Application\Migrations</parameter>
+    <parameter key="doctrine_migrations.table_name">migration_versions</parameter>
+    <parameter key="doctrine_migrations.name">Application Migrations</parameter>
     <parameter key="web_profiler.debug_toolbar.class">Symfony\Bundle\WebProfilerBundle\EventListener\WebDebugToolbarListener</parameter>
-    <parameter key="web_profiler.debug_toolbar.intercept_redirects">true</parameter>
+    <parameter key="web_profiler.debug_toolbar.intercept_redirects">false</parameter>
     <parameter key="web_profiler.debug_toolbar.mode">2</parameter>
     <parameter key="web_profiler.debug_toolbar.position">bottom</parameter>
     <parameter key="sensio.distribution.webconfigurator.class">Sensio\Bundle\DistributionBundle\Configurator\Configurator</parameter>
@@ -1948,6 +1954,9 @@
         </argument>
       </call>
       <call method="addExtension">
+        <argument type="service" id="blogger_blog.twig.extension"/>
+      </call>
+      <call method="addExtension">
         <argument type="service" id="twig.extension.acme.demo"/>
       </call>
       <call method="addGlobal">
@@ -2144,8 +2153,8 @@
     <service id="doctrine.orm.default_manager_configurator" class="Doctrine\Bundle\DoctrineBundle\ManagerConfigurator">
       <argument type="collection"/>
     </service>
-    <service id="doctrine.orm.default_entity_manager" class="EntityManager50f2c208aa02b_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager">
-      <file>/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f2c208aa02b.php</file>
+    <service id="doctrine.orm.default_entity_manager" class="EntityManager510152f572da9_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager">
+      <file>/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_510152f572da9.php</file>
       <argument type="service">
         <service class="Doctrine\ORM\EntityManager" factory-method="create" public="false">
           <argument type="service" id="doctrine.dbal.default_connection"/>
@@ -2366,6 +2375,9 @@
         </argument>
       </call>
     </service>
+    <service id="blogger_blog.twig.extension" class="Blogger\BlogBundle\Twig\Extensions\BloggerBlogExtension">
+      <tag name="twig.extension"/>
+    </service>
     <service id="twig.extension.acme.demo" class="Acme\DemoBundle\Twig\Extension\DemoExtension" public="false">
       <tag name="twig.extension"/>
       <argument type="service" id="twig.loader"/>
@@ -2377,7 +2389,7 @@
     <service id="web_profiler.debug_toolbar" class="Symfony\Bundle\WebProfilerBundle\EventListener\WebDebugToolbarListener">
       <tag name="kernel.event_subscriber"/>
       <argument type="service" id="templating"/>
-      <argument>true</argument>
+      <argument>false</argument>
       <argument>2</argument>
       <argument>bottom</argument>
     </service>

@@ -45,6 +45,7 @@
     <parameter key="secret">088b2b79a694fbcd4a6446c0045653aed0893aa7</parameter>
     <parameter key="database_path">null</parameter>
     <parameter key="blogger_blog.emails.contact_email">ofer@goldbarventures.com</parameter>
+    <parameter key="blogger_blog.comments.latest_comment_limit">10</parameter>
     <parameter key="controller_resolver.class">Symfony\Bundle\FrameworkBundle\Controller\ControllerResolver</parameter>
     <parameter key="controller_name_converter.class">Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser</parameter>
     <parameter key="response_listener.class">Symfony\Component\HttpKernel\EventListener\ResponseListener</parameter>
@@ -467,8 +468,8 @@
     <parameter key="jms_di_extra.directories" type="collection"/>
     <parameter key="jms_di_extra.cache_dir">/home/ofer/Symfony/app/cache/dev/jms_diextra</parameter>
     <parameter key="jms_di_extra.doctrine_integration">true</parameter>
-    <parameter key="jms_di_extra.doctrine_integration.entity_manager.file">/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f4281ce24d3.php</parameter>
-    <parameter key="jms_di_extra.doctrine_integration.entity_manager.class">EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager</parameter>
+    <parameter key="jms_di_extra.doctrine_integration.entity_manager.file">/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_51015e2c90878.php</parameter>
+    <parameter key="jms_di_extra.doctrine_integration.entity_manager.class">EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager</parameter>
     <parameter key="security.secured_services" type="collection"/>
     <parameter key="security.access.method_interceptor.class">JMS\SecurityExtraBundle\Security\Authorization\Interception\MethodSecurityInterceptor</parameter>
     <parameter key="security.access.method_access_control" type="collection"/>
@@ -1953,6 +1954,9 @@
         </argument>
       </call>
       <call method="addExtension">
+        <argument type="service" id="blogger_blog.twig.extension"/>
+      </call>
+      <call method="addExtension">
         <argument type="service" id="twig.extension.acme.demo"/>
       </call>
       <call method="addGlobal">
@@ -2149,8 +2153,8 @@
     <service id="doctrine.orm.default_manager_configurator" class="Doctrine\Bundle\DoctrineBundle\ManagerConfigurator">
       <argument type="collection"/>
     </service>
-    <service id="doctrine.orm.default_entity_manager" class="EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager">
-      <file>/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f4281ce24d3.php</file>
+    <service id="doctrine.orm.default_entity_manager" class="EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager">
+      <file>/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_51015e2c90878.php</file>
       <argument type="service">
         <service class="Doctrine\ORM\EntityManager" factory-method="create" public="false">
           <argument type="service" id="doctrine.dbal.default_connection"/>
@@ -2370,6 +2374,9 @@
           </service>
         </argument>
       </call>
+    </service>
+    <service id="blogger_blog.twig.extension" class="Blogger\BlogBundle\Twig\Extensions\BloggerBlogExtension">
+      <tag name="twig.extension"/>
     </service>
     <service id="twig.extension.acme.demo" class="Acme\DemoBundle\Twig\Extension\DemoExtension" public="false">
       <tag name="twig.extension"/>

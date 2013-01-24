@@ -132,6 +132,19 @@ class appDevDebugProjectContainer extends Container
     }
 
     /**
+     * Gets the 'blogger_blog.twig.extension' service.
+     *
+     * This service is shared.
+     * This method always returns the same instance of the service.
+     *
+     * @return Blogger\BlogBundle\Twig\Extensions\BloggerBlogExtension A Blogger\BlogBundle\Twig\Extensions\BloggerBlogExtension instance.
+     */
+    protected function getBloggerBlog_Twig_ExtensionService()
+    {
+        return $this->services['blogger_blog.twig.extension'] = new \Blogger\BlogBundle\Twig\Extensions\BloggerBlogExtension();
+    }
+
+    /**
      * Gets the 'cache_clearer' service.
      *
      * This service is shared.
@@ -266,11 +279,11 @@ class appDevDebugProjectContainer extends Container
      * This service is shared.
      * This method always returns the same instance of the service.
      *
-     * @return EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager A EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager instance.
+     * @return EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager A EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager instance.
      */
     protected function getDoctrine_Orm_DefaultEntityManagerService()
     {
-        require_once '/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f4281ce24d3.php';
+        require_once '/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_51015e2c90878.php';
 
         $a = new \Doctrine\Common\Cache\ArrayCache();
         $a->setNamespace('sf2orm_default_48259e24d43bcf6e42d304a32044b685');
@@ -300,7 +313,7 @@ class appDevDebugProjectContainer extends Container
         $f = call_user_func(array('Doctrine\\ORM\\EntityManager', 'create'), $this->get('doctrine.dbal.default_connection'), $e);
         $this->get('doctrine.orm.default_manager_configurator')->configure($f);
 
-        return $this->services['doctrine.orm.default_entity_manager'] = new \EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager($f, $this);
+        return $this->services['doctrine.orm.default_entity_manager'] = new \EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager($f, $this);
     }
 
     /**
@@ -2472,6 +2485,7 @@ class appDevDebugProjectContainer extends Container
         $instance->addExtension(new \Twig_Extension_Debug());
         $instance->addExtension(new \Symfony\Bundle\AsseticBundle\Twig\AsseticExtension($this->get('assetic.asset_factory'), $this->get('templating.name_parser'), true, array(), array(), $this->get('assetic.value_supplier.default')));
         $instance->addExtension(new \JMS\SecurityExtraBundle\Twig\SecurityExtension($a));
+        $instance->addExtension($this->get('blogger_blog.twig.extension'));
         $instance->addExtension($this->get('twig.extension.acme.demo'));
         $instance->addGlobal('app', $this->get('templating.globals'));
 
@@ -2580,7 +2594,7 @@ class appDevDebugProjectContainer extends Container
     /**
      * Gets the doctrine.orm.entity_manager service alias.
      *
-     * @return EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager An instance of the doctrine.orm.default_entity_manager service
+     * @return EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\__CG__\Doctrine\ORM\EntityManager An instance of the doctrine.orm.default_entity_manager service
      */
     protected function getDoctrine_Orm_EntityManagerService()
     {
@@ -2966,6 +2980,7 @@ class appDevDebugProjectContainer extends Container
             'secret' => '088b2b79a694fbcd4a6446c0045653aed0893aa7',
             'database_path' => NULL,
             'blogger_blog.emails.contact_email' => 'ofer@goldbarventures.com',
+            'blogger_blog.comments.latest_comment_limit' => 10,
             'controller_resolver.class' => 'Symfony\\Bundle\\FrameworkBundle\\Controller\\ControllerResolver',
             'controller_name_converter.class' => 'Symfony\\Bundle\\FrameworkBundle\\Controller\\ControllerNameParser',
             'response_listener.class' => 'Symfony\\Component\\HttpKernel\\EventListener\\ResponseListener',
@@ -3412,8 +3427,8 @@ class appDevDebugProjectContainer extends Container
             ),
             'jms_di_extra.cache_dir' => '/home/ofer/Symfony/app/cache/dev/jms_diextra',
             'jms_di_extra.doctrine_integration' => true,
-            'jms_di_extra.doctrine_integration.entity_manager.file' => '/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_50f4281ce24d3.php',
-            'jms_di_extra.doctrine_integration.entity_manager.class' => 'EntityManager50f4281ce24d3_546a8d27f194334ee012bfe64f629947b07e4919\\__CG__\\Doctrine\\ORM\\EntityManager',
+            'jms_di_extra.doctrine_integration.entity_manager.file' => '/home/ofer/Symfony/app/cache/dev/jms_diextra/doctrine/EntityManager_51015e2c90878.php',
+            'jms_di_extra.doctrine_integration.entity_manager.class' => 'EntityManager51015e2c90878_546a8d27f194334ee012bfe64f629947b07e4919\\__CG__\\Doctrine\\ORM\\EntityManager',
             'security.secured_services' => array(
 
             ),
