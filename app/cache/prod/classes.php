@@ -1783,7 +1783,7 @@ class Router extends BaseRouter implements WarmableInterface
     {
         $container = $this->container;
 
-        if (null === $value || false === $value || true === $value || is_object($value)) {
+        if (null === $value || false === $value || true === $value || is_object($value) || is_array($value)) {
             return $value;
         }
 
@@ -2542,7 +2542,7 @@ class HeaderBag implements \IteratorAggregate, \Countable
         $cacheControl = array();
         preg_match_all('#([a-zA-Z][a-zA-Z_-]*)\s*(?:=(?:"([^"]*)"|([^ \t",;]*)))?#', $header, $matches, PREG_SET_ORDER);
         foreach ($matches as $match) {
-            $cacheControl[strtolower($match[1])] = isset($match[2]) && $match[2] ? $match[2] : (isset($match[3]) ? $match[3] : true);
+            $cacheControl[strtolower($match[1])] = isset($match[3]) ? $match[3] : (isset($match[2]) ? $match[2] : true);
         }
 
         return $cacheControl;
@@ -2717,7 +2717,22 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 class Request
 {
+    const HEADER_CLIENT_IP = 'client_ip';
+    const HEADER_CLIENT_HOST = 'client_host';
+    const HEADER_CLIENT_PROTO = 'client_proto';
+    const HEADER_CLIENT_PORT = 'client_port';
+
     protected static $trustProxy = false;
+
+    protected static $trustedProxies = array();
+
+    
+    protected static $trustedHeaders = array(
+        self::HEADER_CLIENT_IP    => 'X_FORWARDED_FOR',
+        self::HEADER_CLIENT_HOST  => 'X_FORWARDED_HOST',
+        self::HEADER_CLIENT_PROTO => 'X_FORWARDED_PROTO',
+        self::HEADER_CLIENT_PORT  => 'X_FORWARDED_PORT',
+    );
 
     
     public $attributes;
@@ -2999,6 +3014,23 @@ class Request
     }
 
     
+    public static function setTrustedProxies(array $proxies)
+    {
+        self::$trustedProxies = $proxies;
+        self::$trustProxy = $proxies ? true : false;
+    }
+
+    
+    public static function setTrustedHeaderName($key, $value)
+    {
+        if (!array_key_exists($key, self::$trustedHeaders)) {
+            throw new \InvalidArgumentException(sprintf('Unable to set the trusted header name for key "%s".', $key));
+        }
+
+        self::$trustedHeaders[$key] = $value;
+    }
+
+    
     public static function isProxyTrusted()
     {
         return self::$trustProxy;
@@ -3065,25 +3097,23 @@ class Request
     
     public function getClientIp()
     {
-        if (self::$trustProxy) {
-            if ($this->server->has('HTTP_CLIENT_IP')) {
-                return $this->server->get('HTTP_CLIENT_IP');
-            } elseif ($this->server->has('HTTP_X_FORWARDED_FOR')) {
-                $clientIp = explode(',', $this->server->get('HTTP_X_FORWARDED_FOR'));
+        $ip = $this->server->get('REMOTE_ADDR');
 
-                foreach ($clientIp as $ipAddress) {
-                    $cleanIpAddress = trim($ipAddress);
-
-                    if (false !== filter_var($cleanIpAddress, FILTER_VALIDATE_IP)) {
-                        return $cleanIpAddress;
-                    }
-                }
-
-                return '';
-            }
+        if (!self::$trustProxy) {
+            return $ip;
         }
 
-        return $this->server->get('REMOTE_ADDR');
+        if (!self::$trustedHeaders[self::HEADER_CLIENT_IP] || !$this->headers->has(self::$trustedHeaders[self::HEADER_CLIENT_IP])) {
+            return $ip;
+        }
+
+        $clientIps = array_map('trim', explode(',', $this->headers->get(self::$trustedHeaders[self::HEADER_CLIENT_IP])));
+        $clientIps[] = $ip;
+
+        $trustedProxies = self::$trustProxy && !self::$trustedProxies ? array($ip) : self::$trustedProxies;
+        $clientIps = array_diff($clientIps, $trustedProxies);
+
+        return array_pop($clientIps);
     }
 
     
@@ -3131,8 +3161,8 @@ class Request
     
     public function getPort()
     {
-        if (self::$trustProxy && $this->headers->has('X-Forwarded-Port')) {
-            return $this->headers->get('X-Forwarded-Port');
+        if (self::$trustProxy && self::$trustedHeaders[self::HEADER_CLIENT_PORT] && $port = $this->headers->get(self::$trustedHeaders[self::HEADER_CLIENT_PORT])) {
+            return $port;
         }
 
         return $this->server->get('SERVER_PORT');
@@ -3220,33 +3250,33 @@ class Request
     
     public function isSecure()
     {
-        return (
-            (strtolower($this->server->get('HTTPS')) == 'on' || $this->server->get('HTTPS') == 1)
-            ||
-            (self::$trustProxy && strtolower($this->headers->get('SSL_HTTPS')) == 'on' || $this->headers->get('SSL_HTTPS') == 1)
-            ||
-            (self::$trustProxy && strtolower($this->headers->get('X_FORWARDED_PROTO')) == 'https')
-        );
+        if (self::$trustProxy && self::$trustedHeaders[self::HEADER_CLIENT_PROTO] && $proto = $this->headers->get(self::$trustedHeaders[self::HEADER_CLIENT_PROTO])) {
+            return in_array(strtolower($proto), array('https', 'on', '1'));
+        }
+
+        return 'on' == strtolower($this->server->get('HTTPS')) || 1 == $this->server->get('HTTPS');
     }
 
     
     public function getHost()
     {
-        if (self::$trustProxy && $host = $this->headers->get('X_FORWARDED_HOST')) {
+        if (self::$trustProxy && self::$trustedHeaders[self::HEADER_CLIENT_HOST] && $host = $this->headers->get(self::$trustedHeaders[self::HEADER_CLIENT_HOST])) {
             $elements = explode(',', $host);
 
-            $host = trim($elements[count($elements) - 1]);
-        } else {
-            if (!$host = $this->headers->get('HOST')) {
-                if (!$host = $this->server->get('SERVER_NAME')) {
-                    $host = $this->server->get('SERVER_ADDR', '');
-                }
+            $host = $elements[count($elements) - 1];
+        } elseif (!$host = $this->headers->get('HOST')) {
+            if (!$host = $this->server->get('SERVER_NAME')) {
+                $host = $this->server->get('SERVER_ADDR', '');
             }
         }
 
-                $host = preg_replace('/:\d+$/', '', $host);
+                        $host = strtolower(preg_replace('/:\d+$/', '', trim($host)));
 
-                return trim(strtolower($host));
+                        if ($host && !preg_match('/^\[?(?:[a-zA-Z0-9-:\]_]+\.?)+$/', $host)) {
+            throw new \UnexpectedValueException('Invalid Host');
+        }
+
+        return $host;
     }
 
     
@@ -3820,6 +3850,15 @@ class Response
             }
         }
 
+                if ('HTTP/1.0' != $request->server->get('SERVER_PROTOCOL')) {
+            $this->setProtocolVersion('1.1');
+        }
+
+                if ('1.0' == $this->getProtocolVersion() && 'no-cache' == $this->headers->get('Cache-Control')) {
+            $this->headers->set('pragma', 'no-cache');
+            $this->headers->set('expires', -1);
+        }
+
         return $this;
     }
 
@@ -4021,8 +4060,8 @@ class Response
     
     public function getAge()
     {
-        if ($age = $this->headers->get('Age')) {
-            return $age;
+        if (null !== $age = $this->headers->get('Age')) {
+            return (int) $age;
         }
 
         return max(time() - $this->getDate()->format('U'), 0);
@@ -4041,7 +4080,11 @@ class Response
     
     public function getExpires()
     {
-        return $this->headers->getDate('Expires');
+        try {
+            return $this->headers->getDate('Expires');
+        } catch (\RuntimeException $e) {
+                        return \DateTime::createFromFormat(DATE_RFC2822, 'Sat, 01 Jan 00 00:00:00 +0000');
+        }
     }
 
     
@@ -4061,12 +4104,12 @@ class Response
     
     public function getMaxAge()
     {
-        if ($age = $this->headers->getCacheControlDirective('s-maxage')) {
-            return $age;
+        if ($this->headers->hasCacheControlDirective('s-maxage')) {
+            return (int) $this->headers->getCacheControlDirective('s-maxage');
         }
 
-        if ($age = $this->headers->getCacheControlDirective('max-age')) {
-            return $age;
+        if ($this->headers->hasCacheControlDirective('max-age')) {
+            return (int) $this->headers->getCacheControlDirective('max-age');
         }
 
         if (null !== $this->getExpires()) {
@@ -4096,7 +4139,7 @@ class Response
     
     public function getTtl()
     {
-        if ($maxAge = $this->getMaxAge()) {
+        if (null !== $maxAge = $this->getMaxAge()) {
             return $maxAge - $this->getAge();
         }
 
@@ -4219,7 +4262,7 @@ class Response
     
     public function hasVary()
     {
-        return (Boolean) $this->headers->get('Vary');
+        return null !== $this->headers->get('Vary');
     }
 
     
@@ -5589,37 +5632,21 @@ class ControllerNameParser
 
         list($bundle, $controller, $action) = $parts;
         $controller = str_replace('/', '\\', $controller);
-        $class = null;
-        $logs = array();
-        foreach ($this->kernel->getBundle($bundle, false) as $b) {
+        $bundles = array();
+
+                foreach ($this->kernel->getBundle($bundle, false) as $b) {
             $try = $b->getNamespace().'\\Controller\\'.$controller.'Controller';
-            if (!class_exists($try)) {
-                $logs[] = sprintf('Unable to find controller "%s:%s" - class "%s" does not exist.', $bundle, $controller, $try);
-            } else {
-                $class = $try;
-
-                break;
+            if (class_exists($try)) {
+                return $try.'::'.$action.'Action';
             }
+
+            $bundles[] = $b->getName();
+            $msg = sprintf('Unable to find controller "%s:%s" - class "%s" does not exist.', $bundle, $controller, $try);
         }
 
-        if (null === $class) {
-            $this->handleControllerNotFoundException($bundle, $controller, $logs);
+        if (count($bundles) > 1) {
+            $msg = sprintf('Unable to find controller "%s:%s" in bundles %s.', $bundle, $controller, implode(', ', $bundles));
         }
-
-        return $class.'::'.$action.'Action';
-    }
-
-    private function handleControllerNotFoundException($bundle, $controller, array $logs)
-    {
-                if (1 == count($logs)) {
-            throw new \InvalidArgumentException($logs[0]);
-        }
-
-                $names = array();
-        foreach ($this->kernel->getBundle($bundle, false) as $b) {
-            $names[] = $b->getName();
-        }
-        $msg = sprintf('Unable to find controller "%s:%s" in bundles %s.', $bundle, $controller, implode(', ', $names));
 
         throw new \InvalidArgumentException($msg);
     }
@@ -6265,21 +6292,24 @@ class RequestMatcher implements RequestMatcherInterface
     private $host;
 
     
-    private $methods;
+    private $methods = array();
 
     
     private $ip;
 
     
-    private $attributes;
+    private $attributes = array();
 
+    
     public function __construct($path = null, $host = null, $methods = null, $ip = null, array $attributes = array())
     {
-        $this->path = $path;
-        $this->host = $host;
-        $this->methods = $methods;
-        $this->ip = $ip;
-        $this->attributes = $attributes;
+        $this->matchPath($path);
+        $this->matchHost($host);
+        $this->matchMethod($methods);
+        $this->matchIp($ip);
+        foreach ($attributes as $k => $v) {
+            $this->matchAttribute($k, $v);
+        }
     }
 
     
@@ -6303,7 +6333,7 @@ class RequestMatcher implements RequestMatcherInterface
     
     public function matchMethod($method)
     {
-        $this->methods = array_map('strtoupper', is_array($method) ? $method : array($method));
+        $this->methods = array_map('strtoupper', (array) $method);
     }
 
     
@@ -6315,7 +6345,7 @@ class RequestMatcher implements RequestMatcherInterface
     
     public function matches(Request $request)
     {
-        if (null !== $this->methods && !in_array($request->getMethod(), $this->methods)) {
+        if ($this->methods && !in_array($request->getMethod(), $this->methods)) {
             return false;
         }
 
@@ -6333,7 +6363,7 @@ class RequestMatcher implements RequestMatcherInterface
             }
         }
 
-        if (null !== $this->host && !preg_match('#'.str_replace('#', '\\#', $this->host).'#', $request->getHost())) {
+        if (null !== $this->host && !preg_match('#'.str_replace('#', '\\#', $this->host).'#i', $request->getHost())) {
             return false;
         }
 
@@ -6380,7 +6410,7 @@ class RequestMatcher implements RequestMatcherInterface
 
         if (false !== strpos($ip, '/')) {
             list($address, $netmask) = explode('/', $ip, 2);
-            
+
             if ($netmask < 1 || $netmask > 128) {
                 return false;
             }
@@ -6425,7 +6455,7 @@ namespace
  */
 class Twig_Environment
 {
-    const VERSION = '1.10.3';
+    const VERSION = '1.12.1-DEV';
     protected $charset;
     protected $loader;
     protected $debug;
@@ -6443,6 +6473,7 @@ class Twig_Environment
     protected $functions;
     protected $globals;
     protected $runtimeInitialized;
+    protected $extensionInitialized;
     protected $loadedTemplates;
     protected $strictVariables;
     protected $unaryOperators;
@@ -6506,24 +6537,16 @@ class Twig_Environment
         $this->charset            = $options['charset'];
         $this->baseTemplateClass  = $options['base_template_class'];
         $this->autoReload         = null === $options['auto_reload'] ? $this->debug : (bool) $options['auto_reload'];
-        $this->extensions         = array(
-            'core'      => new Twig_Extension_Core(),
-            'escaper'   => new Twig_Extension_Escaper($options['autoescape']),
-            'optimizer' => new Twig_Extension_Optimizer($options['optimizations']),
-        );
         $this->strictVariables    = (bool) $options['strict_variables'];
         $this->runtimeInitialized = false;
         $this->setCache($options['cache']);
         $this->functionCallbacks = array();
         $this->filterCallbacks = array();
-        $this->staging = array(
-            'functions'     => array(),
-            'filters'       => array(),
-            'tests'         => array(),
-            'token_parsers' => array(),
-            'visitors'      => array(),
-            'globals'       => array(),
-        );
+        $this->addExtension(new Twig_Extension_Core());
+        $this->addExtension(new Twig_Extension_Escaper($options['autoescape']));
+        $this->addExtension(new Twig_Extension_Optimizer($options['optimizations']));
+        $this->extensionInitialized = false;
+        $this->staging = new Twig_Extension_Staging();
     }
     /**
      * Gets the base template class for compiled templates.
@@ -6974,28 +6997,26 @@ class Twig_Environment
      */
     public function addExtension(Twig_ExtensionInterface $extension)
     {
+        if ($this->extensionInitialized) {
+            throw new LogicException(sprintf('Unable to register extension "%s" as extensions have already been initialized.', $extension->getName()));
+        }
         $this->extensions[$extension->getName()] = $extension;
-        $this->parsers = null;
-        $this->visitors = null;
-        $this->filters = null;
-        $this->tests = null;
-        $this->functions = null;
-        $this->globals = null;
     }
     /**
      * Removes an extension by name.
      *
+     * This method is deprecated and you should not use it.
+     *
      * @param string $name The extension name
+     *
+     * @deprecated since 1.12 (to be removed in 2.0)
      */
     public function removeExtension($name)
     {
+        if ($this->extensionInitialized) {
+            throw new LogicException(sprintf('Unable to remove extension "%s" as extensions have already been initialized.', $name));
+        }
         unset($this->extensions[$name]);
-        $this->parsers = null;
-        $this->visitors = null;
-        $this->filters = null;
-        $this->tests = null;
-        $this->functions = null;
-        $this->globals = null;
     }
     /**
      * Registers an array of extensions.
@@ -7024,8 +7045,10 @@ class Twig_Environment
      */
     public function addTokenParser(Twig_TokenParserInterface $parser)
     {
-        $this->staging['token_parsers'][] = $parser;
-        $this->parsers = null;
+        if ($this->extensionInitialized) {
+            throw new LogicException('Unable to add a token parser as extensions have already been initialized.');
+        }
+        $this->staging->addTokenParser($parser);
     }
     /**
      * Gets the registered Token Parsers.
@@ -7034,25 +7057,8 @@ class Twig_Environment
      */
     public function getTokenParsers()
     {
-        if (null === $this->parsers) {
-            $this->parsers = new Twig_TokenParserBroker();
-            if (isset($this->staging['token_parsers'])) {
-                foreach ($this->staging['token_parsers'] as $parser) {
-                    $this->parsers->addTokenParser($parser);
-                }
-            }
-            foreach ($this->getExtensions() as $extension) {
-                $parsers = $extension->getTokenParsers();
-                foreach ($parsers as $parser) {
-                    if ($parser instanceof Twig_TokenParserInterface) {
-                        $this->parsers->addTokenParser($parser);
-                    } elseif ($parser instanceof Twig_TokenParserBrokerInterface) {
-                        $this->parsers->addTokenParserBroker($parser);
-                    } else {
-                        throw new Twig_Error_Runtime('getTokenParsers() must return an array of Twig_TokenParserInterface or Twig_TokenParserBrokerInterface instances');
-                    }
-                }
-            }
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->parsers;
     }
@@ -7080,8 +7086,10 @@ class Twig_Environment
      */
     public function addNodeVisitor(Twig_NodeVisitorInterface $visitor)
     {
-        $this->staging['visitors'][] = $visitor;
-        $this->visitors = null;
+        if ($this->extensionInitialized) {
+            throw new LogicException('Unable to add a node visitor as extensions have already been initialized.', $extension->getName());
+        }
+        $this->staging->addNodeVisitor($visitor);
     }
     /**
      * Gets the registered Node Visitors.
@@ -7090,26 +7098,30 @@ class Twig_Environment
      */
     public function getNodeVisitors()
     {
-        if (null === $this->visitors) {
-            foreach ($this->getExtensions() as $extension) {
-                foreach ($extension->getNodeVisitors() as $visitor) {
-                    $this->addNodeVisitor($visitor);
-                }
-            }
-            $this->visitors = $this->staging['visitors'];
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->visitors;
     }
     /**
      * Registers a Filter.
      *
-     * @param string               $name   The filter name
-     * @param Twig_FilterInterface $filter A Twig_FilterInterface instance
+     * @param string|Twig_SimpleFilter               $name   The filter name or a Twig_SimpleFilter instance
+     * @param Twig_FilterInterface|Twig_SimpleFilter $filter A Twig_FilterInterface instance or a Twig_SimpleFilter instance
      */
-    public function addFilter($name, Twig_FilterInterface $filter)
+    public function addFilter($name, $filter = null)
     {
-        $this->staging['filters'][$name] = $filter;
-        $this->filters = null;
+        if ($this->extensionInitialized) {
+            throw new LogicException(sprintf('Unable to add filter "%s" as extensions have already been initialized.', $name));
+        }
+        if (!$name instanceof Twig_SimpleFilter && !($filter instanceof Twig_SimpleFilter || $filter instanceof Twig_FilterInterface)) {
+            throw new LogicException('A filter must be an instance of Twig_FilterInterface or Twig_SimpleFilter');
+        }
+        if ($name instanceof Twig_SimpleFilter) {
+            $filter = $name;
+            $name = $filter->getName();
+        }
+        $this->staging->addFilter($name, $filter);
     }
     /**
      * Get a filter by name.
@@ -7119,12 +7131,12 @@ class Twig_Environment
      *
      * @param string $name The filter name
      *
-     * @return Twig_Filter|false A Twig_Filter instance or false if the filter does not exists
+     * @return Twig_Filter|false A Twig_Filter instance or false if the filter does not exist
      */
     public function getFilter($name)
     {
-        if (null === $this->filters) {
-            $this->getFilters();
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         if (isset($this->filters[$name])) {
             return $this->filters[$name];
@@ -7161,26 +7173,30 @@ class Twig_Environment
      */
     public function getFilters()
     {
-        if (null === $this->filters) {
-            foreach ($this->getExtensions() as $extension) {
-                foreach ($extension->getFilters() as $name => $filter) {
-                    $this->addFilter($name, $filter);
-                }
-            }
-            $this->filters = $this->staging['filters'];
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->filters;
     }
     /**
      * Registers a Test.
      *
-     * @param string             $name The test name
-     * @param Twig_TestInterface $test A Twig_TestInterface instance
+     * @param string|Twig_SimpleTest             $name The test name or a Twig_SimpleTest instance
+     * @param Twig_TestInterface|Twig_SimpleTest $test A Twig_TestInterface instance or a Twig_SimpleTest instance
      */
-    public function addTest($name, Twig_TestInterface $test)
+    public function addTest($name, $test = null)
     {
-        $this->staging['tests'][$name] = $test;
-        $this->tests = null;
+        if ($this->extensionInitialized) {
+            throw new LogicException(sprintf('Unable to add test "%s" as extensions have already been initialized.', $name));
+        }
+        if (!$name instanceof Twig_SimpleTest && !($test instanceof Twig_SimpleTest || $test instanceof Twig_TestInterface)) {
+            throw new LogicException('A test must be an instance of Twig_TestInterface or Twig_SimpleTest');
+        }
+        if ($name instanceof Twig_SimpleTest) {
+            $test = $name;
+            $name = $test->getName();
+        }
+        $this->staging->addTest($name, $test);
     }
     /**
      * Gets the registered Tests.
@@ -7189,26 +7205,47 @@ class Twig_Environment
      */
     public function getTests()
     {
-        if (null === $this->tests) {
-            foreach ($this->getExtensions() as $extension) {
-                foreach ($extension->getTests() as $name => $test) {
-                    $this->addTest($name, $test);
-                }
-            }
-            $this->tests = $this->staging['tests'];
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->tests;
     }
     /**
+     * Gets a test by name.
+     *
+     * @param string $name The test name
+     *
+     * @return Twig_Test|false A Twig_Test instance or false if the test does not exist
+     */
+    public function getTest($name)
+    {
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
+        }
+        if (isset($this->tests[$name])) {
+            return $this->tests[$name];
+        }
+        return false;
+    }
+    /**
      * Registers a Function.
      *
-     * @param string                 $name     The function name
-     * @param Twig_FunctionInterface $function A Twig_FunctionInterface instance
+     * @param string|Twig_SimpleFunction                 $name     The function name or a Twig_SimpleFunction instance
+     * @param Twig_FunctionInterface|Twig_SimpleFunction $function A Twig_FunctionInterface instance or a Twig_SimpleFunction instance
      */
-    public function addFunction($name, Twig_FunctionInterface $function)
+    public function addFunction($name, $function = null)
     {
-        $this->staging['functions'][$name] = $function;
-        $this->functions = null;
+        if ($this->extensionInitialized) {
+            throw new LogicException(sprintf('Unable to add function "%s" as extensions have already been initialized.', $name));
+        }
+        if (!$name instanceof Twig_SimpleFunction && !($function instanceof Twig_SimpleFunction || $function instanceof Twig_FunctionInterface)) {
+            throw new LogicException('A function must be an instance of Twig_FunctionInterface or Twig_SimpleFunction');
+        }
+        if ($name instanceof Twig_SimpleFunction) {
+            $function = $name;
+            $name = $function->getName();
+        }
+        $this->staging->addFunction($name, $function);
     }
     /**
      * Get a function by name.
@@ -7218,12 +7255,12 @@ class Twig_Environment
      *
      * @param string $name function name
      *
-     * @return Twig_Function|false A Twig_Function instance or false if the function does not exists
+     * @return Twig_Function|false A Twig_Function instance or false if the function does not exist
      */
     public function getFunction($name)
     {
-        if (null === $this->functions) {
-            $this->getFunctions();
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         if (isset($this->functions[$name])) {
             return $this->functions[$name];
@@ -7260,26 +7297,36 @@ class Twig_Environment
      */
     public function getFunctions()
     {
-        if (null === $this->functions) {
-            foreach ($this->getExtensions() as $extension) {
-                foreach ($extension->getFunctions() as $name => $function) {
-                    $this->addFunction($name, $function);
-                }
-            }
-            $this->functions = $this->staging['functions'];
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->functions;
     }
     /**
      * Registers a Global.
      *
+     * New globals can be added before compiling or rendering a template;
+     * but after, you can only update existing globals.
+     *
      * @param string $name  The global name
      * @param mixed  $value The global value
      */
     public function addGlobal($name, $value)
     {
-        $this->staging['globals'][$name] = $value;
-        $this->globals = null;
+        if ($this->extensionInitialized || $this->runtimeInitialized) {
+            if (null === $this->globals) {
+                $this->initGlobals();
+            }
+            if (!array_key_exists($name, $this->globals)) {
+                throw new LogicException(sprintf('Unable to add global "%s" as the runtime or the extensions have already been initialized.', $name));
+            }
+        }
+        if ($this->extensionInitialized || $this->runtimeInitialized) {
+            // update the value
+            $this->globals[$name] = $value;
+        } else {
+            $this->staging->addGlobal($name, $value);
+        }
     }
     /**
      * Gets the registered Globals.
@@ -7288,11 +7335,8 @@ class Twig_Environment
      */
     public function getGlobals()
     {
-        if (null === $this->globals) {
-            $this->globals = isset($this->staging['globals']) ? $this->staging['globals'] : array();
-            foreach ($this->getExtensions() as $extension) {
-                $this->globals = array_merge($this->globals, $extension->getGlobals());
-            }
+        if (null === $this->globals || !($this->runtimeInitialized || $this->extensionInitialized)) {
+            $this->initGlobals();
         }
         return $this->globals;
     }
@@ -7321,8 +7365,8 @@ class Twig_Environment
      */
     public function getUnaryOperators()
     {
-        if (null === $this->unaryOperators) {
-            $this->initOperators();
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->unaryOperators;
     }
@@ -7333,8 +7377,8 @@ class Twig_Environment
      */
     public function getBinaryOperators()
     {
-        if (null === $this->binaryOperators) {
-            $this->initOperators();
+        if (!$this->extensionInitialized) {
+            $this->initExtensions();
         }
         return $this->binaryOperators;
     }
@@ -7350,15 +7394,80 @@ class Twig_Environment
         asort($alternatives);
         return array_keys($alternatives);
     }
-    protected function initOperators()
+    protected function initGlobals()
     {
+        $this->globals = array();
+        foreach ($this->extensions as $extension) {
+            $this->globals = array_merge($this->globals, $extension->getGlobals());
+        }
+        $this->globals = array_merge($this->globals, $this->staging->getGlobals());
+    }
+    protected function initExtensions()
+    {
+        if ($this->extensionInitialized) {
+            return;
+        }
+        $this->extensionInitialized = true;
+        $this->parsers = new Twig_TokenParserBroker();
+        $this->filters = array();
+        $this->functions = array();
+        $this->tests = array();
+        $this->visitors = array();
         $this->unaryOperators = array();
         $this->binaryOperators = array();
-        foreach ($this->getExtensions() as $extension) {
-            $operators = $extension->getOperators();
-            if (!$operators) {
-                continue;
+        foreach ($this->extensions as $extension) {
+            $this->initExtension($extension);
+        }
+        $this->initExtension($this->staging);
+    }
+    protected function initExtension(Twig_ExtensionInterface $extension)
+    {
+        // filters
+        foreach ($extension->getFilters() as $name => $filter) {
+            if ($name instanceof Twig_SimpleFilter) {
+                $filter = $name;
+                $name = $filter->getName();
+            } elseif ($filter instanceof Twig_SimpleFilter) {
+                $name = $filter->getName();
             }
+            $this->filters[$name] = $filter;
+        }
+        // functions
+        foreach ($extension->getFunctions() as $name => $function) {
+            if ($name instanceof Twig_SimpleFunction) {
+                $function = $name;
+                $name = $function->getName();
+            } elseif ($function instanceof Twig_SimpleFunction) {
+                $name = $function->getName();
+            }
+            $this->functions[$name] = $function;
+        }
+        // tests
+        foreach ($extension->getTests() as $name => $test) {
+            if ($name instanceof Twig_SimpleTest) {
+                $test = $name;
+                $name = $test->getName();
+            } elseif ($test instanceof Twig_SimpleTest) {
+                $name = $test->getName();
+            }
+            $this->tests[$name] = $test;
+        }
+        // token parsers
+        foreach ($extension->getTokenParsers() as $parser) {
+            if ($parser instanceof Twig_TokenParserInterface) {
+                $this->parsers->addTokenParser($parser);
+            } elseif ($parser instanceof Twig_TokenParserBrokerInterface) {
+                $this->parsers->addTokenParserBroker($parser);
+            } else {
+                throw new LogicException('getTokenParsers() must return an array of Twig_TokenParserInterface or Twig_TokenParserBrokerInterface instances');
+            }
+        }
+        // node visitors
+        foreach ($extension->getNodeVisitors() as $visitor) {
+            $this->visitors[] = $visitor;
+        }
+        // operators
+        if ($operators = $extension->getOperators()) {
             if (2 !== count($operators)) {
                 throw new InvalidArgumentException(sprintf('"%s::getOperators()" does not return a valid operators array.', get_class($extension)));
             }
@@ -7384,7 +7493,7 @@ class Twig_Environment
                 return;
             }
         }
-        throw new Twig_Error_Runtime(sprintf('Failed to write cache file "%s".', $file));
+        throw new RuntimeException(sprintf('Failed to write cache file "%s".', $file));
     }
 }
 
@@ -7416,55 +7525,55 @@ interface Twig_ExtensionInterface
      *
      * @param Twig_Environment $environment The current Twig_Environment instance
      */
-    function initRuntime(Twig_Environment $environment);
+    public function initRuntime(Twig_Environment $environment);
     /**
      * Returns the token parser instances to add to the existing list.
      *
      * @return array An array of Twig_TokenParserInterface or Twig_TokenParserBrokerInterface instances
      */
-    function getTokenParsers();
+    public function getTokenParsers();
     /**
      * Returns the node visitor instances to add to the existing list.
      *
      * @return array An array of Twig_NodeVisitorInterface instances
      */
-    function getNodeVisitors();
+    public function getNodeVisitors();
     /**
      * Returns a list of filters to add to the existing list.
      *
      * @return array An array of filters
      */
-    function getFilters();
+    public function getFilters();
     /**
      * Returns a list of tests to add to the existing list.
      *
      * @return array An array of tests
      */
-    function getTests();
+    public function getTests();
     /**
      * Returns a list of functions to add to the existing list.
      *
      * @return array An array of functions
      */
-    function getFunctions();
+    public function getFunctions();
     /**
      * Returns a list of operators to add to the existing list.
      *
      * @return array An array of operators
      */
-    function getOperators();
+    public function getOperators();
     /**
      * Returns a list of global variables to add to the existing list.
      *
      * @return array An array of global variables
      */
-    function getGlobals();
+    public function getGlobals();
     /**
      * Returns the name of the extension.
      *
      * @return string The extension name
      */
-    function getName();
+    public function getName();
 }
 
 }
@@ -7618,6 +7727,9 @@ class Twig_Extension_Core extends Twig_Extension
      */
     public function getTimezone()
     {
+        if (null === $this->timezone) {
+            $this->timezone = new DateTimeZone(date_default_timezone_get());
+        }
         return $this->timezone;
     }
     /**
@@ -7674,40 +7786,39 @@ class Twig_Extension_Core extends Twig_Extension
     {
         $filters = array(
             // formatting filters
-            'date'          => new Twig_Filter_Function('twig_date_format_filter', array('needs_environment' => true)),
-            'date_modify'   => new Twig_Filter_Function('twig_date_modify_filter', array('needs_environment' => true)),
-            'format'        => new Twig_Filter_Function('sprintf'),
-            'replace'       => new Twig_Filter_Function('strtr'),
-            'number_format' => new Twig_Filter_Function('twig_number_format_filter', array('needs_environment' => true)),
-            'abs'           => new Twig_Filter_Function('abs'),
+            new Twig_SimpleFilter('date', 'twig_date_format_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('date_modify', 'twig_date_modify_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('format', 'sprintf'),
+            new Twig_SimpleFilter('replace', 'strtr'),
+            new Twig_SimpleFilter('number_format', 'twig_number_format_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('abs', 'abs'),
             // encoding
-            'url_encode'       => new Twig_Filter_Function('twig_urlencode_filter'),
-            'json_encode'      => new Twig_Filter_Function('twig_jsonencode_filter'),
-            'convert_encoding' => new Twig_Filter_Function('twig_convert_encoding'),
+            new Twig_SimpleFilter('url_encode', 'twig_urlencode_filter'),
+            new Twig_SimpleFilter('json_encode', 'twig_jsonencode_filter'),
+            new Twig_SimpleFilter('convert_encoding', 'twig_convert_encoding'),
             // string filters
-            'title'      => new Twig_Filter_Function('twig_title_string_filter', array('needs_environment' => true)),
-            'capitalize' => new Twig_Filter_Function('twig_capitalize_string_filter', array('needs_environment' => true)),
-            'upper'      => new Twig_Filter_Function('strtoupper'),
-            'lower'      => new Twig_Filter_Function('strtolower'),
-            'striptags'  => new Twig_Filter_Function('strip_tags'),
-            'trim'       => new Twig_Filter_Function('trim'),
-            'nl2br'      => new Twig_Filter_Function('nl2br', array('pre_escape' => 'html', 'is_safe' => array('html'))),
+            new Twig_SimpleFilter('title', 'twig_title_string_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('capitalize', 'twig_capitalize_string_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('upper', 'strtoupper'),
+            new Twig_SimpleFilter('lower', 'strtolower'),
+            new Twig_SimpleFilter('striptags', 'strip_tags'),
+            new Twig_SimpleFilter('trim', 'trim'),
+            new Twig_SimpleFilter('nl2br', 'nl2br', array('pre_escape' => 'html', 'is_safe' => array('html'))),
             // array helpers
-            'join'    => new Twig_Filter_Function('twig_join_filter'),
-            'split'   => new Twig_Filter_Function('twig_split_filter'),
-            'sort'    => new Twig_Filter_Function('twig_sort_filter'),
-            'merge'   => new Twig_Filter_Function('twig_array_merge'),
+            new Twig_SimpleFilter('join', 'twig_join_filter'),
+            new Twig_SimpleFilter('split', 'twig_split_filter'),
+            new Twig_SimpleFilter('sort', 'twig_sort_filter'),
+            new Twig_SimpleFilter('merge', 'twig_array_merge'),
             // string/array filters
-            'reverse' => new Twig_Filter_Function('twig_reverse_filter', array('needs_environment' => true)),
-            'length'  => new Twig_Filter_Function('twig_length_filter', array('needs_environment' => true)),
-            'slice'   => new Twig_Filter_Function('twig_slice', array('needs_environment' => true)),
+            new Twig_SimpleFilter('reverse', 'twig_reverse_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('length', 'twig_length_filter', array('needs_environment' => true)),
+            new Twig_SimpleFilter('slice', 'twig_slice', array('needs_environment' => true)),
             // iteration and runtime
-            'default' => new Twig_Filter_Node('Twig_Node_Expression_Filter_Default'),
-            '_default' => new Twig_Filter_Function('_twig_default_filter'),
-            'keys'    => new Twig_Filter_Function('twig_get_array_keys_filter'),
+            new Twig_SimpleFilter('default', '_twig_default_filter', array('node_class' => 'Twig_Node_Expression_Filter_Default')),
+            new Twig_SimpleFilter('keys', 'twig_get_array_keys_filter'),
             // escaping
-            'escape' => new Twig_Filter_Function('twig_escape_filter', array('needs_environment' => true, 'is_safe_callback' => 'twig_escape_filter_is_safe')),
-            'e'      => new Twig_Filter_Function('twig_escape_filter', array('needs_environment' => true, 'is_safe_callback' => 'twig_escape_filter_is_safe')),
+            new Twig_SimpleFilter('escape', 'twig_escape_filter', array('needs_environment' => true, 'is_safe_callback' => 'twig_escape_filter_is_safe')),
+            new Twig_SimpleFilter('e', 'twig_escape_filter', array('needs_environment' => true, 'is_safe_callback' => 'twig_escape_filter_is_safe')),
         );
         if (function_exists('mb_get_info')) {
             $filters['upper'] = new Twig_Filter_Function('twig_upper_filter', array('needs_environment' => true));
@@ -7723,11 +7834,12 @@ class Twig_Extension_Core extends Twig_Extension
     public function getFunctions()
     {
         return array(
-            'range'    => new Twig_Function_Function('range'),
-            'constant' => new Twig_Function_Function('constant'),
-            'cycle'    => new Twig_Function_Function('twig_cycle'),
-            'random'   => new Twig_Function_Function('twig_random', array('needs_environment' => true)),
-            'date'     => new Twig_Function_Function('twig_date_converter', array('needs_environment' => true)),
+            new Twig_SimpleFunction('range', 'range'),
+            new Twig_SimpleFunction('constant', 'constant'),
+            new Twig_SimpleFunction('cycle', 'twig_cycle'),
+            new Twig_SimpleFunction('random', 'twig_random', array('needs_environment' => true)),
+            new Twig_SimpleFunction('date', 'twig_date_converter', array('needs_environment' => true)),
+            new Twig_SimpleFunction('include', 'twig_include', array('needs_environment' => true, 'needs_context' => true)),
         );
     }
     /**
@@ -7738,16 +7850,16 @@ class Twig_Extension_Core extends Twig_Extension
     public function getTests()
     {
         return array(
-            'even'        => new Twig_Test_Node('Twig_Node_Expression_Test_Even'),
-            'odd'         => new Twig_Test_Node('Twig_Node_Expression_Test_Odd'),
-            'defined'     => new Twig_Test_Node('Twig_Node_Expression_Test_Defined'),
-            'sameas'      => new Twig_Test_Node('Twig_Node_Expression_Test_Sameas'),
-            'none'        => new Twig_Test_Node('Twig_Node_Expression_Test_Null'),
-            'null'        => new Twig_Test_Node('Twig_Node_Expression_Test_Null'),
-            'divisibleby' => new Twig_Test_Node('Twig_Node_Expression_Test_Divisibleby'),
-            'constant'    => new Twig_Test_Node('Twig_Node_Expression_Test_Constant'),
-            'empty'       => new Twig_Test_Function('twig_test_empty'),
-            'iterable'    => new Twig_Test_Function('twig_test_iterable'),
+            new Twig_SimpleTest('even', null, array('node_class' => 'Twig_Node_Expression_Test_Even')),
+            new Twig_SimpleTest('odd', null, array('node_class' => 'Twig_Node_Expression_Test_Odd')),
+            new Twig_SimpleTest('defined', null, array('node_class' => 'Twig_Node_Expression_Test_Defined')),
+            new Twig_SimpleTest('sameas', null, array('node_class' => 'Twig_Node_Expression_Test_Sameas')),
+            new Twig_SimpleTest('none', null, array('node_class' => 'Twig_Node_Expression_Test_Null')),
+            new Twig_SimpleTest('null', null, array('node_class' => 'Twig_Node_Expression_Test_Null')),
+            new Twig_SimpleTest('divisibleby', null, array('node_class' => 'Twig_Node_Expression_Test_Divisibleby')),
+            new Twig_SimpleTest('constant', null, array('node_class' => 'Twig_Node_Expression_Test_Constant')),
+            new Twig_SimpleTest('empty', 'twig_test_empty'),
+            new Twig_SimpleTest('iterable', 'twig_test_iterable'),
         );
     }
     /**
@@ -7764,11 +7876,11 @@ class Twig_Extension_Core extends Twig_Extension
                 '+'   => array('precedence' => 500, 'class' => 'Twig_Node_Expression_Unary_Pos'),
             ),
             array(
-                'b-and'  => array('precedence' => 5, 'class' => 'Twig_Node_Expression_Binary_BitwiseAnd', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
-                'b-xor'  => array('precedence' => 5, 'class' => 'Twig_Node_Expression_Binary_BitwiseXor', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
-                'b-or'   => array('precedence' => 5, 'class' => 'Twig_Node_Expression_Binary_BitwiseOr', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
                 'or'     => array('precedence' => 10, 'class' => 'Twig_Node_Expression_Binary_Or', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
                 'and'    => array('precedence' => 15, 'class' => 'Twig_Node_Expression_Binary_And', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
+                'b-or'   => array('precedence' => 16, 'class' => 'Twig_Node_Expression_Binary_BitwiseOr', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
+                'b-xor'  => array('precedence' => 17, 'class' => 'Twig_Node_Expression_Binary_BitwiseXor', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
+                'b-and'  => array('precedence' => 18, 'class' => 'Twig_Node_Expression_Binary_BitwiseAnd', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
                 '=='     => array('precedence' => 20, 'class' => 'Twig_Node_Expression_Binary_Equal', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
                 '!='     => array('precedence' => 20, 'class' => 'Twig_Node_Expression_Binary_NotEqual', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
                 '<'      => array('precedence' => 20, 'class' => 'Twig_Node_Expression_Binary_Less', 'associativity' => Twig_ExpressionParser::OPERATOR_LEFT),
@@ -7801,18 +7913,26 @@ class Twig_Extension_Core extends Twig_Extension
         $name = $stream->expect(Twig_Token::NAME_TYPE)->getValue();
         $arguments = null;
         if ($stream->test(Twig_Token::PUNCTUATION_TYPE, '(')) {
-            $arguments = $parser->getExpressionParser()->parseArguments();
+            $arguments = $parser->getExpressionParser()->parseArguments(true);
         }
-        $class = $this->getTestNodeClass($parser->getEnvironment(), $name);
+        $class = $this->getTestNodeClass($parser, $name, $node->getLine());
         return new $class($node, $name, $arguments, $parser->getCurrentToken()->getLine());
     }
-    protected function getTestNodeClass(Twig_Environment $env, $name)
+    protected function getTestNodeClass(Twig_Parser $parser, $name, $line)
     {
+        $env = $parser->getEnvironment();
         $testMap = $env->getTests();
-        if (isset($testMap[$name]) && $testMap[$name] instanceof Twig_Test_Node) {
-            return $testMap[$name]->getClass();
+        if (!isset($testMap[$name])) {
+            $message = sprintf('The test "%s" does not exist', $name);
+            if ($alternatives = $env->computeAlternatives($name, array_keys($env->getTests()))) {
+                $message = sprintf('%s. Did you mean "%s"', $message, implode('", "', $alternatives));
+            }
+            throw new Twig_Error_Syntax($message, $line, $parser->getFilename());
         }
-        return 'Twig_Node_Expression_Test';
+        if ($testMap[$name] instanceof Twig_SimpleTest) {
+            return $testMap[$name]->getNodeClass();
+        }
+        return $testMap[$name] instanceof Twig_Test_Node ? $testMap[$name]->getClass() : 'Twig_Node_Expression_Test';
     }
     /**
      * Returns the name of the extension.
@@ -7827,17 +7947,17 @@ class Twig_Extension_Core extends Twig_Extension
 /**
  * Cycles over a value.
  *
- * @param ArrayAccess|array $values An array or an ArrayAccess instance
- * @param integer           $i      The cycle value
+ * @param ArrayAccess|array $values   An array or an ArrayAccess instance
+ * @param integer           $position The cycle position
  *
  * @return string The next value in the cycle
  */
-function twig_cycle($values, $i)
+function twig_cycle($values, $position)
 {
     if (!is_array($values) && !$values instanceof ArrayAccess) {
         return $values;
     }
-    return $values[$i % count($values)];
+    return $values[$position % count($values)];
 }
 /**
  * Returns a random value depending on the supplied parameter type:
@@ -7910,11 +8030,7 @@ function twig_date_format_filter(Twig_Environment $env, $date, $format = null, $
         $formats = $env->getExtension('core')->getDateFormat();
         $format = $date instanceof DateInterval ? $formats[1] : $formats[0];
     }
-    if ($date instanceof DateInterval || $date instanceof DateTime) {
-        if (null !== $timezone) {
-            $date = clone $date;
-            $date->setTimezone($timezone instanceof DateTimeZone ? $timezone : new DateTimeZone($timezone));
-        }
+    if ($date instanceof DateInterval) {
         return $date->format($format);
     }
     return twig_date_converter($env, $date, $timezone)->format($format);
@@ -7923,7 +8039,7 @@ function twig_date_format_filter(Twig_Environment $env, $date, $format = null, $
  * Returns a new date object modified
  *
  * <pre>
- *   {{ post.published_at|modify("-1day")|date("m/d/Y") }}
+ *   {{ post.published_at|date_modify("-1day")|date("m/d/Y") }}
  * </pre>
  *
  * @param Twig_Environment  $env      A Twig_Environment instance
@@ -7934,11 +8050,7 @@ function twig_date_format_filter(Twig_Environment $env, $date, $format = null, $
  */
 function twig_date_modify_filter(Twig_Environment $env, $date, $modifier)
 {
-    if ($date instanceof DateTime) {
-        $date = clone $date;
-    } else {
-        $date = twig_date_converter($env, $date);
-    }
+    $date = twig_date_converter($env, $date, false);
     $date->modify($modifier);
     return $date;
 }
@@ -7959,29 +8071,28 @@ function twig_date_modify_filter(Twig_Environment $env, $date, $modifier)
  */
 function twig_date_converter(Twig_Environment $env, $date = null, $timezone = null)
 {
-    if (!$date instanceof DateTime) {
-        $asString = (string) $date;
-        if (ctype_digit($asString) || (!empty($asString) && '-' === $asString[0] && ctype_digit(substr($asString, 1)))) {
-            $date = new DateTime('@'.$date);
-        } else {
-            $date = new DateTime($date);
-        }
+    // determine the timezone
+    if (!$timezone) {
+        $defaultTimezone = $env->getExtension('core')->getTimezone();
+    } elseif (!$timezone instanceof DateTimeZone) {
+        $defaultTimezone = new DateTimeZone($timezone);
     } else {
+        $defaultTimezone = $timezone;
+    }
+    if ($date instanceof DateTime) {
         $date = clone $date;
-    }
-    // set Timezone
-    if (null !== $timezone) {
-        if ($timezone instanceof DateTimeZone) {
-            $date->setTimezone($timezone);
-        } else {
-            $date->setTimezone(new DateTimeZone($timezone));
+        if (false !== $timezone) {
+            $date->setTimezone($defaultTimezone);
         }
-    } elseif (($timezone = $env->getExtension('core')->getTimezone()) instanceof DateTimeZone) {
-        $date->setTimezone($timezone);
-    } else {
-        $date->setTimezone(new DateTimeZone(date_default_timezone_get()));
+        return $date;
     }
-    return $date;
+    $asString = (string) $date;
+    if (ctype_digit($asString) || (!empty($asString) && '-' === $asString[0] && ctype_digit(substr($asString, 1)))) {
+        $date = new DateTime('@'.$date);
+        $date->setTimezone($defaultTimezone);
+        return $date;
+    }
+    return new DateTime($date, $defaultTimezone);
 }
 /**
  * Number format filter.
@@ -8252,16 +8363,15 @@ function twig_sort_filter($array)
 /* used internally */
 function twig_in_filter($value, $compare)
 {
-    $strict = is_object($value);
     if (is_array($compare)) {
-        return in_array($value, $compare, $strict);
+        return in_array($value, $compare, is_object($value));
     } elseif (is_string($compare)) {
-        if (!strlen((string) $value)) {
+        if (!strlen($value)) {
             return empty($compare);
         }
         return false !== strpos($compare, (string) $value);
-    } elseif (is_object($compare) && $compare instanceof Traversable) {
-        return in_array($value, iterator_to_array($compare, false), $strict);
+    } elseif ($compare instanceof Traversable) {
+        return in_array($value, iterator_to_array($compare, false), is_object($value));
     }
     return false;
 }
@@ -8540,8 +8650,7 @@ if (function_exists('mb_get_info')) {
     }
 }
 // and byte fallback
-else
-{
+else {
     /**
      * Returns the length of a variable.
      *
@@ -8606,7 +8715,7 @@ function twig_test_empty($value)
     if ($value instanceof Countable) {
         return 0 == count($value);
     }
-    return false === $value || (empty($value) && '0' != $value);
+    return '' === $value || false === $value || null === $value || array() === $value;
 }
 /**
  * Checks if a variable is traversable.
@@ -8625,6 +8734,39 @@ function twig_test_empty($value)
 function twig_test_iterable($value)
 {
     return $value instanceof Traversable || is_array($value);
+}
+/**
+ * Renders a template.
+ *
+ * @param string  template       The template to render
+ * @param array   variables      The variables to pass to the template
+ * @param Boolean with_context   Whether to pass the current context variables or not
+ * @param Boolean ignore_missing Whether to ignore missing templates or not
+ * @param Boolean sandboxed      Whether to sandbox the template or not
+ *
+ * @return string The rendered template
+ */
+function twig_include(Twig_Environment $env, $context, $template, $variables = array(), $withContext = true, $ignoreMissing = false, $sandboxed = false)
+{
+    if ($withContext) {
+        $variables = array_merge($context, $variables);
+    }
+    if ($isSandboxed = $sandboxed && $env->hasExtension('sandbox')) {
+        $sandbox = $env->getExtension('sandbox');
+        if (!$alreadySandboxed = $sandbox->isSandboxed()) {
+            $sandbox->enableSandbox();
+        }
+    }
+    try {
+        return $env->resolveTemplate($template)->display($variables);
+    } catch (Twig_Error_Loader $e) {
+        if (!$ignoreMissing) {
+            throw $e;
+        }
+    }
+    if ($isSandboxed && !$alreadySandboxed) {
+        $sandbox->disableSandbox();
+    }
 }
 
 }
@@ -8673,7 +8815,7 @@ class Twig_Extension_Escaper extends Twig_Extension
     public function getFilters()
     {
         return array(
-            'raw' => new Twig_Filter_Function('twig_raw_filter', array('is_safe' => array('all'))),
+            new Twig_SimpleFilter('raw', 'twig_raw_filter', array('is_safe' => array('all'))),
         );
     }
     /**
@@ -8794,7 +8936,7 @@ interface Twig_LoaderInterface
      *
      * @throws Twig_Error_Loader When $name is not found
      */
-    function getSource($name);
+    public function getSource($name);
     /**
      * Gets the cache key to use for the cache for a given template name.
      *
@@ -8804,7 +8946,7 @@ interface Twig_LoaderInterface
      *
      * @throws Twig_Error_Loader When $name is not found
      */
-    function getCacheKey($name);
+    public function getCacheKey($name);
     /**
      * Returns true if the template is still fresh.
      *
@@ -8815,7 +8957,7 @@ interface Twig_LoaderInterface
      *
      * @throws Twig_Error_Loader When $name is not found
      */
-    function isFresh($name, $time);
+    public function isFresh($name, $time);
 }
 
 }
@@ -8872,8 +9014,9 @@ namespace
 /**
  * Interface implemented by all compiled templates.
  *
- * @package twig
- * @author  Fabien Potencier <fabien@symfony.com>
+ * @package    twig
+ * @author     Fabien Potencier <fabien@symfony.com>
+ * @deprecated since 1.12 (to be removed in 2.0)
  */
 interface Twig_TemplateInterface
 {
@@ -8887,20 +9030,20 @@ interface Twig_TemplateInterface
      *
      * @return string The rendered template
      */
-    function render(array $context);
+    public function render(array $context);
     /**
      * Displays the template with the given context.
      *
      * @param array $context An array of parameters to pass to the template
      * @param array $blocks  An array of blocks to pass to the template
      */
-    function display(array $context, array $blocks = array());
+    public function display(array $context, array $blocks = array());
     /**
      * Returns the bound environment for this template.
      *
      * @return Twig_Environment The current environment
      */
-    function getEnvironment();
+    public function getEnvironment();
 }
 
 }
@@ -8925,7 +9068,7 @@ namespace
  */
 abstract class Twig_Template implements Twig_TemplateInterface
 {
-    static protected $cache = array();
+    protected static $cache = array();
     protected $parent;
     protected $parents;
     protected $env;
@@ -9146,6 +9289,15 @@ abstract class Twig_Template implements Twig_TemplateInterface
         try {
             $this->doDisplay($context, $blocks);
         } catch (Twig_Error $e) {
+            if (!$e->getTemplateFile()) {
+                $e->setTemplateFile($this->getTemplateName());
+            }
+            // this is mostly useful for Twig_Error_Loader exceptions
+            // see Twig_Error_Loader
+            if (false === $e->getTemplateLine()) {
+                $e->setTemplateLine(-1);
+                $e->guess();
+            }
             throw $e;
         } catch (Exception $e) {
             throw new Twig_Error_Runtime(sprintf('An exception has been thrown during the rendering of a template ("%s").', $e->getMessage()), -1, null, $e);
@@ -9222,11 +9374,11 @@ abstract class Twig_Template implements Twig_TemplateInterface
                     return null;
                 }
                 if (is_object($object)) {
-                    throw new Twig_Error_Runtime(sprintf('Key "%s" in object (with ArrayAccess) of type "%s" does not exist', $item, get_class($object)));
+                    throw new Twig_Error_Runtime(sprintf('Key "%s" in object (with ArrayAccess) of type "%s" does not exist', $item, get_class($object)), -1, $this->getTemplateName());
                 } elseif (is_array($object)) {
-                    throw new Twig_Error_Runtime(sprintf('Key "%s" for array with keys "%s" does not exist', $item, implode(', ', array_keys($object))));
+                    throw new Twig_Error_Runtime(sprintf('Key "%s" for array with keys "%s" does not exist', $item, implode(', ', array_keys($object))), -1, $this->getTemplateName());
                 } else {
-                    throw new Twig_Error_Runtime(sprintf('Impossible to access a key ("%s") on a "%s" variable', $item, gettype($object)));
+                    throw new Twig_Error_Runtime(sprintf('Impossible to access a key ("%s") on a "%s" variable', $item, gettype($object)), -1, $this->getTemplateName());
                 }
             }
         }
@@ -9237,7 +9389,7 @@ abstract class Twig_Template implements Twig_TemplateInterface
             if ($ignoreStrictCheck || !$this->env->isStrictVariables()) {
                 return null;
             }
-            throw new Twig_Error_Runtime(sprintf('Item "%s" for "%s" does not exist', $item, is_array($object) ? 'Array' : $object));
+            throw new Twig_Error_Runtime(sprintf('Item "%s" for "%s" does not exist', $item, is_array($object) ? 'Array' : $object), -1, $this->getTemplateName());
         }
         $class = get_class($object);
         // object property
@@ -9272,7 +9424,7 @@ abstract class Twig_Template implements Twig_TemplateInterface
             if ($ignoreStrictCheck || !$this->env->isStrictVariables()) {
                 return null;
             }
-            throw new Twig_Error_Runtime(sprintf('Method "%s" for object "%s" does not exist', $item, get_class($object)));
+            throw new Twig_Error_Runtime(sprintf('Method "%s" for object "%s" does not exist', $item, get_class($object)), -1, $this->getTemplateName());
         }
         if ($isDefinedTest) {
             return true;
@@ -9291,7 +9443,7 @@ abstract class Twig_Template implements Twig_TemplateInterface
     /**
      * This method is only useful when testing Twig. Do not use it.
      */
-    static public function clearCache()
+    public static function clearCache()
     {
         self::$cache = array();
     }
